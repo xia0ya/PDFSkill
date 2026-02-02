@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF标签添加工具 - 浏览器版</title>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            display: none;
+        }
+        .instructions {
+            background-color: #e7f3fe;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 PDF标签添加工具 (浏览器版)</h1>
+        
+        <div class="instructions">
+            <h3>使用说明：</h3>
+            <ul>
+                <li>所有处理均在浏览器中完成，文件不会上传到服务器</li>
+                <li>支持批量处理多个PDF文件</li>
+                <li>选择标签位置（9个预设位置）</li>
+                <li>可自定义标签文本、字体、颜色和偏移</li>
+            </ul>
+        </div>
+        
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="pdfFile">选择PDF文件 (支持多选):</label>
+                <input type="file" id="pdfFile" name="pdfFile" accept=".pdf" multiple required>
+            </div>
+            
+            <div class="form-group">
+                <label for="labelText">标签文本:</label>
+                <input type="text" id="labelText" name="labelText" value="Made in China">
+            </div>
+            
+            <div class="form-group">
+                <label for="position">标签位置:</label>
+                <select id="position" name="position">
+                    <option value="top-right">右上角</option>
+                    <option value="top-left">左上角</option>
+                    <option value="top-center">顶部居中</option>
+                    <option value="middle-right">右侧中间</option>
+                    <option value="middle-left">左侧中间</option>
+                    <option value="middle-center">正中间</option>
+                    <option value="bottom-right">右下角</option>
+                    <option value="bottom-left">左下角</option>
+                    <option value="bottom-center">底部居中</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="fontSize">字体大小:</label>
+                <input type="number" id="fontSize" name="fontSize" value="8" min="6" max="20">
+            </div>
+            
+            <div class="form-group">
+                <label for="fontColor">字体颜色:</label>
+                <input type="color" id="fontColor" name="fontColor" value="#FF0000">
+            </div>
+            
+            <div class="form-group">
+                <label for="xOffset">X轴偏移 (-50到50):</label>
+                <input type="number" id="xOffset" name="xOffset" value="0" min="-50" max="50">
+            </div>
+            
+            <div class="form-group">
+                <label for="yOffset">Y轴偏移 (-50到50):</label>
+                <input type="number" id="yOffset" name="yOffset" value="0" min="-50" max="50">
+            </div>
+            
+            <button type="submit">处理PDF</button>
+        </form>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('pdfFile');
+            const files = fileInput.files;
+            
+            if (files.length === 0) {
+                alert('请选择至少一个PDF文件');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `开始处理... (共${files.length}个文件)`;
+            
+            // 获取参数
+            const labelText = document.getElementById('labelText').value;
+            const position = document.getElementById('position').value;
+            const fontSize = parseInt(document.getElementById('fontSize').value);
+            const fontColor = document.getElementById('fontColor').value;
+            const xOffset = parseInt(document.getElementById('xOffset').value);
+            const yOffset = parseInt(document.getElementById('yOffset').value);
+            
+            try {
+                // 处理每个文件
+                for (let i = 0; i < files.length; i++) {
+                    resultDiv.innerHTML = `正在处理: ${files[i].name} (${i+1}/${files.length})`;
+                    
+                    const arrayBuffer = await files[i].arrayBuffer();
+                    const { PDFDocument, rgb } = PDFLib;
+                    
+                    const pdfDoc = await PDFDocument.load(arrayBuffer);
+                    const pages = pdfDoc.getPages();
+                    
+                    // 计算颜色
+                    const r = parseInt(fontColor.substr(1, 2), 16) / 255;
+                    const g = parseInt(fontColor.substr(3, 2), 16) / 255;
+                    const b = parseInt(fontColor.substr(5, 2), 16) / 255;
+                    
+                    for (const page of pages) {
+                        const { width, height } = page.getSize();
+                        
+                        // 计算标签位置
+                        let x, y;
+                        const textWidth = labelText.length * fontSize * 0.6; // 估算文本宽度
+                        const margin = 10 + fontSize;
+
+                        switch (position) {
+                            case 'top-left':
+                                x = margin;
+                                y = height - margin;
+                                break;
+                            case 'top-center':
+                                x = (width - textWidth) / 2;
+                                y = height - margin;
+                                break;
+                            case 'top-right':
+                                x = width - textWidth - margin;
+                                y = height - margin;
+                                break;
+                            case 'middle-left':
+                                x = margin;
+                                y = height / 2;
+                                break;
+                            case 'center':
+                                x = (width - textWidth) / 2;
+                                y = height / 2;
+                                break;
+                            case 'middle-right':
+                                x = width - textWidth - margin;
+                                y = height / 2;
+                                break;
+                            case 'bottom-left':
+                                x = margin;
+                                y = margin + fontSize;
+                                break;
+                            case 'bottom-center':
+                                x = (width - textWidth) / 2;
+                                y = margin + fontSize;
+                                break;
+                            case 'bottom-right':
+                                x = width - textWidth - margin;
+                                y = margin + fontSize;
+                                break;
+                            default:
+                                x = width - textWidth - margin;
+                                y = height - margin;
+                        }
+
+                        // 应用偏移
+                        x += xOffset;
+                        y -= yOffset; // 负的y偏移向上移动
+
+                        // 确保标签在页面边界内
+                        x = Math.max(margin, Math.min(x, width - textWidth - margin));
+                        y = Math.max(margin + fontSize, Math.min(y, height - margin));
+
+                        // 添加标签文本
+                        page.drawText(labelText, {
+                            x: x,
+                            y: y,
+                            size: fontSize,
+                            color: rgb(r, g, b),
+                        });
+                    }
+
+                    // 保存修改后的PDF
+                    const modifiedPdfBytes = await pdfDoc.save();
+                    
+                    // 创建下载链接
+                    const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `processed_${files[i].name}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+                
+                resultDiv.innerHTML = `完成！${files.length}个文件已处理并下载。`;
+            } catch (error) {
+                resultDiv.innerHTML = '错误: ' + error.message;
+                console.error('处理错误:', error);
+            }
+        });
+    </script>
+</body>
+</html>
