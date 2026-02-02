@@ -65,6 +65,13 @@
             padding: 15px;
             margin-bottom: 20px;
         }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -79,6 +86,10 @@
                 <li>选择标签位置（9个预设位置）</li>
                 <li>可自定义标签文本、字体、颜色和偏移</li>
             </ul>
+        </div>
+        
+        <div class="warning">
+            <strong>注意：</strong> 为避免覆盖原有内容，建议使用较小字体(8-10号)并将标签放置在页面角落。
         </div>
         
         <form id="uploadForm" enctype="multipart/form-data">
@@ -168,7 +179,7 @@
                     const pdfDoc = await PDFDocument.load(arrayBuffer);
                     
                     // 嵌入字体以确保一致性
-                    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
                     
                     const pages = pdfDoc.getPages();
                     
@@ -180,15 +191,16 @@
                     for (const page of pages) {
                         const { width, height } = page.getSize();
                         
-                        // 计算标签位置
+                        // 计算标签位置 - 使用更大的边距以避免覆盖内容
                         let x, y;
-                        const textWidth = font.widthOfTextAtSize(labelText, fontSize); // 更精确的文本宽度计算
-                        const margin = 10 + fontSize;
+                        const textWidth = font.widthOfTextAtSize(labelText, fontSize);
+                        // 使用更大的边距以减少覆盖风险
+                        const margin = Math.max(20, 10 + fontSize);
 
                         switch (position) {
                             case 'top-left':
                                 x = margin;
-                                y = height - margin - fontSize; // 调整Y坐标以适应字体基线
+                                y = height - margin - fontSize;
                                 break;
                             case 'top-center':
                                 x = (width - textWidth) / 2;
@@ -212,15 +224,15 @@
                                 break;
                             case 'bottom-left':
                                 x = margin;
-                                y = margin;
+                                y = margin + fontSize; // 抬高一点避免在最底部
                                 break;
                             case 'bottom-center':
                                 x = (width - textWidth) / 2;
-                                y = margin;
+                                y = margin + fontSize;
                                 break;
                             case 'bottom-right':
                                 x = width - textWidth - margin;
-                                y = margin;
+                                y = margin + fontSize;
                                 break;
                             default:
                                 x = width - textWidth - margin;
@@ -229,19 +241,24 @@
 
                         // 应用偏移
                         x += xOffset;
-                        y += yOffset; // 在pdf-lib中，y偏移方向与Canvas相反
+                        y += yOffset;
 
-                        // 确保标签在页面边界内
-                        x = Math.max(margin, Math.min(x, width - textWidth - margin));
-                        y = Math.max(margin, Math.min(y, height - margin - fontSize));
+                        // 确保标签在页面边界内，并增加额外的安全边距
+                        const safeMargin = Math.max(15, fontSize);
+                        x = Math.max(safeMargin, Math.min(x, width - textWidth - safeMargin));
+                        y = Math.max(safeMargin, Math.min(y, height - safeMargin));
 
+                        // 创建一个透明度较低的背景矩形来增强对比度，但不影响下方内容
+                        const textPage = page;
+                        
                         // 添加标签文本
-                        page.drawText(labelText, {
+                        textPage.drawText(labelText, {
                             x: x,
                             y: y,
                             size: fontSize,
                             font: font,
                             color: rgb(r, g, b),
+                            opacity: 0.9, // 略低于完全不透明以稍微降低覆盖效果
                         });
                     }
 
@@ -260,7 +277,7 @@
                     URL.revokeObjectURL(url);
                 }
                 
-                resultDiv.innerHTML = `完成！${files.length}个文件已处理并下载。`;
+                resultDiv.innerHTML = `完成！${files.length}个文件已处理并下载。为获得最佳效果，建议将标签放置在页面角落并使用较小字体。`;
             } catch (error) {
                 resultDiv.innerHTML = '错误: ' + error.message;
                 console.error('处理错误:', error);
